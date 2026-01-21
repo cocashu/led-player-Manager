@@ -8,6 +8,8 @@
 ### Introduction
 A professional LED screen playback control system built with **Python**, **PyQt6**, and **FastAPI**. Designed for stability and performance, this controller provides seamless media playback with professional transition effects, controllable via a local GUI or a remote Web interface.
 
+> **Note**: The vast majority of the code in this project was generated with the assistance of AI.
+
 ### Key Features
 - **Multi-Format Support**: Seamlessly plays **Images**, **Videos**, and **Text**.
 - **High-Performance Rendering**: Utilizes **QML** for hardware-accelerated rendering.
@@ -18,14 +20,15 @@ A professional LED screen playback control system built with **Python**, **PyQt6
 - **Dual-Mode Operation**: Supports standalone operation or integration with LED sender cards (via screen positioning).
 
 ### Prerequisites
-- Python 3.9 or higher
+- **Operating System**: Developed and tested on **Windows 10**. Other operating systems have not been verified.
+- Python 3.10 or higher
 - **VLC Media Player** (must be installed on the system as `libvlc` is required for video decoding)
 
 ### Installation
 1. Clone the repository:
    ```bash
-   git clone https://github.com/yourusername/led-player.git
-   cd led-player
+   git clone https://github.com/yourusername/led-player-Manage.git
+   cd led-player-Manage
    ```
 
 2. Install Python dependencies:
@@ -54,6 +57,11 @@ python main.py
 - `database/`: SQLite database management.
 - `utils/`: Configuration and helper utilities.
 
+### Contributing & Feedback
+We welcome contributions and suggestions! If you have ideas for improvements or encounter any issues:
+- **Issues**: Please file a bug report or feature request in the [Issues](https://github.com/cocashu/led-player-Manager/issues) section.
+- **Pull Requests**: Feel free to submit a PR with your enhancements.
+
 ---
 
 <a name="chinese"></a>
@@ -61,6 +69,8 @@ python main.py
 
 ### 项目简介
 本项目是一个基于 **Python**、**PyQt6** 和 **FastAPI** 构建的专业 LED 大屏播放控制系统。专为高稳定性与高性能设计，提供专业级的媒体播放体验，支持无缝切换与丰富的过渡特效，可通过本地 GUI 或 Web 界面进行管理。
+
+> **说明**：本项目绝大部分代码由 AI 辅助生成。
 
 ### 核心功能
 - **多格式支持**：完美支持 **图片**、**视频** 和 **富文本** 播放。
@@ -72,14 +82,15 @@ python main.py
 - **双模运行**：支持单机运行或配合 LED 发送卡使用（通过窗口定位）。
 
 ### 环境要求
-- Python 3.9 或更高版本
+- **操作系统**：本项目基于 **Windows 10** 开发与测试，未在其他操作系统上验证。
+- Python 3.10 或更高版本
 - **VLC Media Player** (系统必须安装 VLC，程序依赖 `libvlc` 进行视频解码)
 
 ### 安装说明
 1. 克隆项目代码：
    ```bash
-   git clone https://github.com/yourusername/led-player.git
-   cd led-player
+   git clone https://github.com/yourusername/led-player-Manage.git
+   cd led-player-Manage
    ```
 
 2. 安装 Python 依赖：
@@ -107,3 +118,8 @@ python main.py
 - `web_server.py`: Web 服务器初始化脚本。
 - `database/`: SQLite 数据库管理。
 - `utils/`: 配置与通用工具模块。
+
+### 贡献与反馈 (Contributing)
+欢迎任何形式的贡献和建议！如果您有更好的想法或发现了问题：
+- **提交 Issue**：请在 [Issues](https://github.com/cocashu/led-player-Manager/issues) 页面提交 Bug 报告或功能建议。
+- **提交 PR**：欢迎 Fork 本项目并提交 Pull Request 来贡献代码。
