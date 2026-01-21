@@ -16,4 +16,8 @@ logs/
 data/*.db
 data/*.sqlite
 *.mp4
-测试/*
+测试/
+# Exclude specific files requested by user
+nerwreadme.md
+*.bat
+*.rar
