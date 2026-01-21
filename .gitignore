@@ -12,6 +12,7 @@ dist/
 logs/
 .vscode/
 .idea/
+.history/
 *.log
 data/*.db
 data/*.sqlite
