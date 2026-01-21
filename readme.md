@@ -109,7 +109,7 @@ python main.py
 
 - 程序启动后会显示 GUI 控制面板（及系统托盘图标）。
 - Web 服务将自动在 **8080** 端口启动。
-- 打开浏览器访问 Web 管理界面：`http://localhost:8080`
+- 打开浏览器访问 Web 管理界面：`http://localhost:8080` (默认用户名/密码：`admin`/`admin`)
 
 ### 项目结构
 - `main.py`: 程序启动入口。
