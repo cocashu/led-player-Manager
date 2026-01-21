@@ -1,0 +1,1593 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LED屏幕控制系统</title>
+    <!-- Bootstrap 5 CSS -->
+    <link href="/static/css/bootstrap.min.css" rel="stylesheet">
+    <!-- Bootstrap Icons -->
+    <link href="/static/css/bootstrap-icons.css" rel="stylesheet">
+    <style>
+        body { font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif; background-color: #f8f9fa; }
+        .sidebar {
+            height: 100vh;
+            position: sticky;
+            top: 0;
+            background-color: #343a40;
+            padding-top: 20px;
+            color: #fff;
+        }
+        .sidebar a {
+            color: #adb5bd;
+            text-decoration: none;
+            padding: 10px 15px;
+            display: block;
+            border-radius: 4px;
+        }
+        .sidebar a:hover, .sidebar a.active {
+            color: #fff;
+            background-color: #0d6efd;
+        }
+        .sidebar i { margin-right: 10px; }
+        .main-content { padding: 20px; }
+        .content-section { display: none; }
+        .content-section.active { display: block; }
+        
+        /* Monitor Styles */
+        .monitor-box { 
+            width: 384px; 
+            height: 216px; 
+            position: relative; 
+            background: #000; 
+            overflow: hidden; 
+            border: 2px solid #ccc; 
+            display: flex; 
+            align-items: center; 
+            justify-content: center; 
+        }
+        .monitor-box.active { border-color: #28a745; box-shadow: 0 0 10px rgba(40, 167, 69, 0.5); }
+        .monitor-label { position: absolute; top: 0; left: 0; background: rgba(0,0,0,0.5); color: #fff; padding: 2px 5px; font-size: 12px; z-index: 10; }
+        .media-preview-box {
+            width: 960px;
+            height: 540px;
+            margin: 0 auto;
+            background: #000;
+            border: 1px solid #ccc;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .media-preview-box video,
+        .media-preview-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            background: #000;
+        }
+        .placeholder-text { color: #666; }
+        
+        /* Table overrides */
+        .table-responsive { overflow-x: auto; }
+        
+        /* Card styles */
+        .card { margin-bottom: 20px; box-shadow: 0 0.125rem 0.25rem rgba(0,0,0,0.075); border: none; }
+        .card-header { background-color: #fff; border-bottom: 1px solid #eee; font-weight: 600; }
+        
+        /* Loading Overlay */
+        #loadingOverlay {
+            position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(255,255,255,0.8); z-index: 9999;
+            display: flex; justify-content: center; align-items: center;
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="loadingOverlay"><div class="spinner-border text-primary" role="status"></div></div>
+
+    <div id="app-content" class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse show">
+                <h4 class="px-3 mb-4">LED控制系统</h4>
+                <ul class="nav flex-column">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#" onclick="showSection('dashboard', this)">
+                            <i class="bi bi-speedometer2"></i> 运行监控
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="showSection('media', this)">
+                            <i class="bi bi-collection-play"></i> 媒体管理
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="showSection('schedule', this)">
+                            <i class="bi bi-calendar-check"></i> 播放计划
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="showSection('settings', this)">
+                            <i class="bi bi-display"></i> 输出设置
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="showSection('camera', this)">
+                            <i class="bi bi-camera-video"></i> 摄像头配置
+                        </a>
+                    </li>
+
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="showSection('logs', this)">
+                            <i class="bi bi-journal-text"></i> 播放记录
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#" onclick="showSection('users', this)">
+                            <i class="bi bi-people"></i> 用户管理
+                        </a>
+                    </li>
+                    <li class="nav-item mt-3">
+                        <a class="nav-link text-danger" href="#" onclick="logout()">
+                            <i class="bi bi-box-arrow-right"></i> 退出登录
+                        </a>
+                    </li>
+                </ul>
+            </nav>
+
+            <!-- Main Content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
+                
+                <!-- Dashboard Section -->
+                <div id="section-dashboard" class="content-section active">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1 class="h2">运行监控</h1>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="card">
+                                <div class="card-header">播放状态</div>
+                                <div class="card-body" id="previewStatus">
+                                    <p>当前媒体: <span id="curMediaName" class="fw-bold">-</span> (<span id="curMediaType">-</span>)</p>
+                                    <p>计划ID: <span id="curScheduleId">-</span></p>
+                                    <p>进度: <span id="curElapsed">00:00</span> / <span id="curTotal">00:00</span></p>
+                                </div>
+                            </div>
+                            <div class="card mt-3">
+                                <div class="card-header">系统状态</div>
+                                <div class="card-body" id="systemStatus">
+                                    <p>输出模式: <span id="curOutputMode">-</span></p>
+                                    <p>输出目标: <span id="curOutputTargets">-</span></p>
+                                    <p>缩放模式: <span id="curScaleMode">-</span></p>
+                                    <p>播放计划状态: <span id="curScheduleState">-</span></p>
+                                    <p>播放窗口: <span id="curPlayWindowState">-</span></p>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="card mb-3">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <span>输出画面快照</span>
+                                    <button class="btn btn-sm btn-outline-primary" id="outputPreviewToggle" onclick="toggleOutputPreview()">开始预览</button>
+                                </div>
+                                <div class="card-body d-flex justify-content-center">
+                                    <div id="outputSnapshotBox" class="monitor-box">
+                                        <div class="monitor-label">输出镜像</div>
+                                        <img id="outputSnapshotImage" style="width:100%;height:100%;object-fit:contain;display:none">
+                                        <div class="placeholder-text" id="outputSnapshotPlaceholder">无快照</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="card">
+                                <div class="card-header d-flex justify-content-between align-items-center">
+                                    <span>摄像头监控</span>
+                                    <button class="btn btn-sm btn-outline-primary" id="cameraPreviewToggle" onclick="toggleCameraPreview()">开始预览</button>
+                                </div>
+                                <div class="card-body d-flex justify-content-center">
+                                    <div id="cameraSnapshotBox" class="monitor-box">
+                                        <div class="monitor-label">摄像头画面</div>
+                                        <img id="cameraSnapshotImage" style="width:100%;height:100%;object-fit:contain;display:none">
+                                        <div class="placeholder-text" id="cameraSnapshotPlaceholder">无画面</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Media Section -->
+                <div id="section-media" class="content-section">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1 class="h2">媒体管理</h1>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">上传新媒体</div>
+                        <div class="card-body">
+                            <div class="row g-3 align-items-end">
+                                <div class="col-md-5">
+                                    <label class="form-label">选择文件</label>
+                                    <input type="file" class="form-control" id="fileInput">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">媒体类型</label>
+                                    <select class="form-select" id="mediaType">
+                                        <option value="video">视频</option>
+                                        <option value="image">图片</option>
+                                        <option value="text">文字</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-2">
+                                    <button class="btn btn-primary w-100" onclick="uploadFile()">上传</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>媒体库</span>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="loadMedia()">刷新</button>
+                        </div>
+                        <div class="card-body">
+                            <div id="mediaList" class="table-responsive"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Schedule Section -->
+                <div id="section-schedule" class="content-section">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1 class="h2">播放计划</h1>
+                        <div class="btn-toolbar mb-2 mb-md-0">
+                            <div class="btn-group me-2">
+                                <button class="btn btn-sm btn-outline-success" onclick="startAll()">
+                                    <i class="bi bi-play-fill"></i> 启动所有计划
+                                </button>
+                                <button class="btn btn-sm btn-outline-warning" onclick="stopAll()">
+                                    <i class="bi bi-stop-fill"></i> 停止所有计划
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">编辑/创建计划</div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">选择媒体</label>
+                                    <select class="form-select" id="scheduleMediaSelect"></select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">开始日期</label>
+                                    <input type="date" class="form-control" id="startTime">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">结束日期</label>
+                                    <input type="date" class="form-control" id="endTime">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">播放时长(秒)</label>
+                                    <input type="number" class="form-control" id="playDuration" value="10">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">优先级</label>
+                                    <input type="number" class="form-control" id="priority" value="0">
+                                </div>
+                            </div>
+                            
+                            <!-- Text Options -->
+                            <div id="textOptions" class="mt-3 p-3 bg-light rounded" style="display:none">
+                                <h6>文字属性设置</h6>
+                                <div class="row g-3">
+                                    <div class="col-md-3">
+                                        <label class="form-label">文字大小</label>
+                                        <input type="number" class="form-control" id="textSize" value="48">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">展示方式</label>
+                                        <select class="form-select" id="textScrollMode">
+                                            <option value="static">静态（默认）</option>
+                                            <option value="vertical">上下滚动</option>
+                                            <option value="horizontal">左右滚动</option>
+                                        </select>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">文字颜色</label>
+                                        <input type="color" class="form-control form-control-color" id="textColor" value="#FFFFFF">
+                                    </div>
+                                    <div class="col-md-3">
+                                        <label class="form-label">背景颜色</label>
+                                        <input type="color" class="form-control form-control-color" id="bgColor" value="#000000">
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="mt-3">
+                                <button id="createBtn" class="btn btn-success" onclick="createSchedule()">创建计划</button>
+                                <button id="cancelEditBtn" class="btn btn-secondary" style="display:none" onclick="cancelEdit()">取消编辑</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>计划列表</span>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="loadSchedule()">刷新</button>
+                        </div>
+                        <div class="card-body">
+                            <div class="row mb-3 align-items-center g-2">
+                                <div class="col-auto">
+                                    <div class="form-check">
+                                        <input class="form-check-input" type="checkbox" id="playWindowEnabled">
+                                        <label class="form-check-label" for="playWindowEnabled">启用大屏时间窗</label>
+                                    </div>
+                                </div>
+                                <div class="col-auto"><label class="col-form-label">开始:</label></div>
+                                <div class="col-auto"><input type="time" class="form-control form-control-sm" id="playWindowStart"></div>
+                                <div class="col-auto"><label class="col-form-label">结束:</label></div>
+                                <div class="col-auto"><input type="time" class="form-control form-control-sm" id="playWindowEnd"></div>
+                                <div class="col-auto"><button class="btn btn-sm btn-primary" onclick="savePlayWindow()">保存时间窗</button></div>
+                            </div>
+                            <div id="scheduleList" class="table-responsive"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Settings Section -->
+                <div id="section-settings" class="content-section">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1 class="h2">输出设置</h1>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-header">显示器配置</div>
+                        <div class="card-body">
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <label class="form-label">输出模式</label>
+                                    <select class="form-select" id="outputMode">
+                                        <option value="specified">指定显示器输出</option>
+                                        <option value="sync">多显示器同步输出</option>
+                                        <option value="extended">多显示器扩展输出</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-6" id="extendedScaleRow" style="display:none">
+                                    <label class="form-label">扩展输出缩放</label>
+                                    <select class="form-select" id="scaleMode">
+                                        <option value="fit">保持比例</option>
+                                        <option value="stretch_width">宽度拉伸</option>
+                                        <option value="stretch_height">高度拉伸</option>
+                                        <option value="stretch_full">全屏拉伸</option>
+                                    </select>
+                                </div>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <label class="form-label">显示器列表</label>
+                                <div id="screensList" class="border p-2 rounded bg-light"></div>
+                            </div>
+
+                            <div class="d-flex gap-2 mb-4">
+                                <button class="btn btn-info text-white" onclick="loadScreens()">刷新列表</button>
+                                <button class="btn btn-primary" onclick="applyOutput()">应用输出设置</button>
+                                <button class="btn btn-danger" onclick="closeOutput()">关闭输出</button>
+                            </div>
+                            
+                            <hr>
+                            
+                            <h5 class="mb-3">屏幕测试</h5>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-danger" onclick="applyTestColor('#FF0000')">红</button>
+                                <button class="btn btn-success" onclick="applyTestColor('#00FF00')">绿</button>
+                                <button class="btn btn-primary" onclick="applyTestColor('#0000FF')">蓝</button>
+                                <button class="btn btn-light border" onclick="applyTestColor('#FFFFFF')">白</button>
+                                <button class="btn btn-dark" onclick="applyTestColor('#000000')">黑</button>
+                                <button class="btn btn-secondary" onclick="applyTestColor('#888888')">灰</button>
+                            </div>
+                            <small class="text-muted d-block mt-2">提示：切换显示器时，如当前已开启输出，将保持当前输出窗口；在“同步/扩展”模式会打开多个全屏输出窗口。</small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Camera Section -->
+                <div id="section-camera" class="content-section">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1 class="h2">摄像头配置</h1>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">摄像头参数</div>
+                        <div class="card-body">
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-3">
+                                    <div class="form-check mt-4">
+                                        <input class="form-check-input" type="checkbox" id="cameraEnabled">
+                                        <label class="form-check-label" for="cameraEnabled">启用摄像头监控</label>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">名称</label>
+                                    <input type="text" class="form-control" id="cameraName">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">流地址（RTSP/HTTP）</label>
+                                    <input type="text" class="form-control" id="cameraStreamUrl" placeholder="例如：rtsp://192.168.1.100:554/...">
+                                </div>
+                            </div>
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-3">
+                                    <label class="form-label">用户名</label>
+                                    <input type="text" class="form-control" id="cameraUsername">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">密码</label>
+                                    <input type="password" class="form-control" id="cameraPassword">
+                                </div>
+                                <div class="col-md-6">
+                                    <label class="form-label">备注</label>
+                                    <input type="text" class="form-control" id="cameraNotes">
+                                </div>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-primary" onclick="saveCameraConfig()">保存配置</button>
+                                <button class="btn btn-outline-secondary" onclick="loadCameraConfig()">重新加载</button>
+                                <button class="btn btn-outline-primary" onclick="refreshCameraSnapshot()">立即刷新画面</button>
+                            </div>
+                            <div class="mt-3">
+                                <span id="cameraStatusText" class="text-muted"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Logs Section -->
+                <div id="section-logs" class="content-section">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1 class="h2">播放记录</h1>
+                    </div>
+                    
+                    <div class="card">
+                        <div class="card-body">
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-4">
+                                    <div class="input-group">
+                                        <span class="input-group-text">日期范围</span>
+                                        <input type="date" class="form-control" id="logStart">
+                                        <input type="date" class="form-control" id="logEnd">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="d-flex justify-content-between mb-3">
+                                <div class="btn-group">
+                                    <button class="btn btn-outline-secondary" onclick="prevLogsPage()">上一页</button>
+                                    <button class="btn btn-outline-secondary" onclick="nextLogsPage()">下一页</button>
+                                </div>
+                                <span id="logsPageInfo" class="align-self-center"></span>
+                            </div>
+                            
+                            <div class="mb-3">
+                                <button class="btn btn-info text-white btn-sm" onclick="loadLogStats()">刷新统计</button>
+                                <div id="logStats" class="mt-2"></div>
+                            </div>
+                            
+                            <h5>播放明细 <button class="btn btn-sm btn-outline-primary ms-2" onclick="loadLogs()">刷新</button></h5>
+                            <div id="logList" class="table-responsive"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Users Section -->
+                <div id="section-users" class="content-section">
+                    <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+                        <h1 class="h2">用户管理</h1>
+                    </div>
+                    <div class="card">
+                        <div class="card-header d-flex justify-content-between align-items-center">
+                            <span>用户列表</span>
+                            <button class="btn btn-sm btn-outline-secondary" onclick="loadUsers()">刷新</button>
+                        </div>
+                        <div class="card-body">
+                            <div id="usersList" class="table-responsive"></div>
+                        </div>
+                    </div>
+                    <div class="card">
+                        <div class="card-header">新增/修改用户</div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">用户名</label>
+                                    <input type="text" class="form-control" id="userNameInput">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">密码</label>
+                                    <input type="password" class="form-control" id="userPassInput">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">管理员</label>
+                                    <select class="form-select" id="userAdminInput">
+                                        <option value="0">否</option>
+                                        <option value="1">是</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="mt-3 d-flex gap-2">
+                                <button class="btn btn-success" onclick="createUser()">新增用户</button>
+                                <button class="btn btn-primary" onclick="applyUserUpdate()">修改选中用户</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+            </main>
+        </div>
+    </div>
+
+    <div class="modal fade" id="mediaPreviewModal" tabindex="-1" aria-hidden="true">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="mediaPreviewTitle">媒体预览</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="media-preview-box">
+                        <div id="mediaPreviewVideoWrapper" class="w-100 h-100 d-none">
+                            <video id="mediaPreviewVideo" controls muted class="w-100 h-100"></video>
+                        </div>
+                        <img id="mediaPreviewImage" class="w-100 h-100 d-none" alt="媒体预览">
+                        <pre id="mediaPreviewText" class="form-control w-100 h-100 d-none" style="white-space: pre-wrap; overflow:auto; margin:0; border:0; border-radius:0;"></pre>
+                        <div id="mediaPreviewPlaceholder" class="text-muted">暂无可预览内容</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle -->
+    <script src="/static/js/bootstrap.bundle.min.js"></script>
+    
+    <script>
+        // Navigation Logic
+        function showSection(sectionId, linkElement) {
+            document.querySelectorAll('.content-section').forEach(el => el.classList.remove('active'));
+            document.getElementById('section-' + sectionId).classList.add('active');
+            
+            document.querySelectorAll('.sidebar .nav-link').forEach(el => el.classList.remove('active'));
+            if(linkElement) linkElement.classList.add('active');
+            
+            if(sectionId === 'media') loadMedia();
+            if(sectionId === 'schedule') loadSchedule();
+            if(sectionId === 'settings') loadScreens();
+            if(sectionId === 'logs') loadLogs();
+            if(sectionId === 'users') loadUsers();
+            if(sectionId === 'camera') loadCameraConfig();
+        }
+        
+        let API_BASE = '/api';
+        if (window.location.protocol === 'file:') {
+            API_BASE = 'http://127.0.0.1:8080/api';
+        }
+        const logsLimit = 100;
+        let scheduleCache = [];
+        let mediaCache = [];
+        let currentEditId = null;
+        let logsPage = 1;
+        let lastMonitorPath = null;
+        let appInitialized = false;
+        let cameraEnabled = false;
+        let cameraPreviewActive = false;
+        let outputPreviewActive = false;
+
+        async function checkAuth() {
+            try {
+                const res = await fetch(`${API_BASE}/auth/check`);
+                const data = await res.json();
+                if (data.status === 'authenticated') {
+                    if (!appInitialized) {
+                        initApp();
+                    }
+                } else {
+                    window.location.href = '/login';
+                }
+            } catch (e) {
+                window.location.href = '/login';
+            }
+        }
+
+        async function logout() {
+            try {
+                await fetch(`${API_BASE}/logout`, { method: 'POST' });
+            } catch (e) {}
+            window.location.href = '/login';
+        }
+
+        const originalFetch = window.fetch;
+        window.fetch = async function(...args) {
+            const response = await originalFetch(...args);
+            try {
+                const url = typeof args[0] === 'string' ? args[0] : (args[0].url || '');
+                if (response.status === 401 && !url.endsWith('/login') && !url.endsWith('/auth/check')) {
+                    showLogin();
+                }
+            } catch (e) {}
+            return response;
+        };
+
+        function initApp() {
+            appInitialized = true;
+            loadScreens();
+            loadOutputConfig();
+            loadMedia();
+            loadSchedule();
+            loadPlayWindow();
+            setInterval(refreshPreview, 1000);
+            refreshPreview();
+            setInterval(refreshOutputSnapshot, 1000);
+            refreshOutputSnapshot();
+            loadCameraConfig();
+            setInterval(refreshCameraSnapshot, 2000);
+            refreshCameraSnapshot();
+        }
+
+        async function uploadFile() {
+            const fileInput = document.getElementById('fileInput');
+            const mediaType = document.getElementById('mediaType').value;
+            
+            if (fileInput.files.length === 0) {
+                alert('请选择文件');
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+            formData.append('media_type', mediaType);
+
+            try {
+                const response = await fetch(`${API_BASE}/upload`, {
+                    method: 'POST',
+                    body: formData
+                });
+                const result = await response.json();
+                alert('上传成功: ' + JSON.stringify(result));
+                loadMedia();
+            } catch (error) {
+                alert('上传失败: ' + error);
+            }
+        }
+
+        function buildMediaUrl(originalPath) {
+            if (!originalPath) return null;
+            // Normalize path separators
+            const normalizedPath = String(originalPath).replace(/\\/g, '/');
+            const filename = normalizedPath.split('/').pop();
+            
+            // Determine base URL
+            const mediaBase = API_BASE.startsWith('http') ? API_BASE.replace(/\/api$/, '') : '';
+            
+            // Use the full path directly (encoded)
+            // This supports both absolute paths (e.g. E:/...) and relative paths
+            const encodedPath = normalizedPath.split('/').map(encodeURIComponent).join('/');
+            const url = `${mediaBase}/media_files/${encodedPath}`;
+            
+            return { url, filename };
+        }
+
+        async function loadMedia() {
+            try {
+                const response = await fetch(`${API_BASE}/media`);
+                const result = await response.json();
+                mediaCache = result.data || [];
+                let html = '<table class="table table-striped table-hover"><thead><tr><th>ID</th><th>名称</th><th>类型</th><th>路径</th><th>操作</th></tr></thead><tbody>';
+                mediaCache.forEach(item => {
+                    let deleteBtn = '';
+                    if (!item.is_used) {
+                        deleteBtn = `<button class="btn btn-sm btn-danger" onclick="deleteMedia(${item.id})">删除</button>`;
+                    } else {
+                        deleteBtn = '<span class="text-muted">使用中</span>';
+                    }
+                    const previewBtn = `<button class="btn btn-sm btn-outline-primary me-1" onclick="previewMedia(${item.id})">预览</button>`;
+                    html += `<tr><td>${item.id}</td><td>${item.name}</td><td>${item.type}</td><td>${item.path}</td><td>${previewBtn}${deleteBtn}</td></tr>`;
+                });
+                html += '</tbody></table>';
+                document.getElementById('mediaList').innerHTML = html;
+                
+                const sel = document.getElementById('scheduleMediaSelect');
+                sel.innerHTML = mediaCache.map(m => `<option value="${m.id}" data-type="${m.type}" data-duration="${m.duration ?? 0}">${m.name} (${m.type})</option>`).join('');
+                onScheduleMediaChange(); 
+            } catch (error) {
+                console.error('加载媒体失败:', error);
+            }
+        }
+
+        async function deleteMedia(id) {
+            if(!confirm('确定删除该媒体文件?')) return;
+            try {
+                await fetch(`${API_BASE}/media/${id}`, { method: 'DELETE' });
+                loadMedia();
+            } catch (error) {
+                alert('删除失败: ' + error);
+            }
+        }
+
+        function resetMediaPreview() {
+            const videoWrapper = document.getElementById('mediaPreviewVideoWrapper');
+            const videoEl = document.getElementById('mediaPreviewVideo');
+            const imgEl = document.getElementById('mediaPreviewImage');
+            const textEl = document.getElementById('mediaPreviewText');
+            const placeholder = document.getElementById('mediaPreviewPlaceholder');
+            videoWrapper.classList.add('d-none');
+            imgEl.classList.add('d-none');
+            textEl.classList.add('d-none');
+            placeholder.classList.remove('d-none');
+            if (videoEl) {
+                try {
+                    videoEl.pause();
+                } catch (e) {}
+                videoEl.removeAttribute('src');
+                videoEl.load();
+            }
+            if (imgEl) {
+                imgEl.removeAttribute('src');
+            }
+            if (textEl) {
+                textEl.textContent = '';
+            }
+        }
+
+        async function previewMedia(id) {
+            const item = mediaCache.find(m => m.id === id);
+            if (!item) return;
+            resetMediaPreview();
+            const modalEl = document.getElementById('mediaPreviewModal');
+            const titleEl = document.getElementById('mediaPreviewTitle');
+            const videoWrapper = document.getElementById('mediaPreviewVideoWrapper');
+            const videoEl = document.getElementById('mediaPreviewVideo');
+            const imgEl = document.getElementById('mediaPreviewImage');
+            const textEl = document.getElementById('mediaPreviewText');
+            const placeholder = document.getElementById('mediaPreviewPlaceholder');
+            titleEl.innerText = `预览: ${item.name} (${item.type})`;
+            const info = buildMediaUrl(item.path);
+            if (!info) {
+                placeholder.innerText = '无法解析媒体路径';
+                return;
+            }
+            const ext = (info.filename || '').split('.').pop().toLowerCase();
+            const isImageFile = ['jpg', 'jpeg', 'png', 'pngg', 'gif', 'bmp', 'webp'].includes(ext);
+            const isVideoFile = ['mp4', 'webm', 'ogg', 'mov', 'avi', 'mkv'].includes(ext);
+            const isTextFile = ['txt', 'json', 'md', 'log'].includes(ext);
+            let displayType = item.type;
+            if (isImageFile) displayType = 'image';
+            else if (isVideoFile) displayType = 'video';
+            else if (isTextFile) displayType = 'text';
+            placeholder.classList.add('d-none');
+            if (displayType === 'video') {
+                videoWrapper.classList.remove('d-none');
+                videoEl.src = `${info.url}?t=${Date.now()}`;
+                try {
+                    await videoEl.play();
+                } catch (e) {}
+            } else if (displayType === 'image') {
+                imgEl.classList.remove('d-none');
+                imgEl.src = `${info.url}?t=${Date.now()}`;
+            } else if (displayType === 'text') {
+                textEl.classList.remove('d-none');
+                try {
+                    const res = await fetch(`${info.url}?t=${Date.now()}`);
+                    const txt = await res.text();
+                    textEl.textContent = txt;
+                } catch (e) {
+                    textEl.textContent = '';
+                    placeholder.classList.remove('d-none');
+                    placeholder.innerText = '加载文本失败';
+                }
+            } else {
+                placeholder.classList.remove('d-none');
+                placeholder.innerText = '该媒体类型暂不支持预览';
+            }
+            const modal = new bootstrap.Modal(modalEl);
+            modal.show();
+        }
+
+        function onScheduleMediaChange() {
+            const sel = document.getElementById('scheduleMediaSelect');
+            const opt = sel.options[sel.selectedIndex];
+            const type = opt?.getAttribute('data-type');
+            const mediaDuration = parseInt(opt?.getAttribute('data-duration') || '0');
+            document.getElementById('textOptions').style.display = (type === 'text') ? 'block' : 'none';
+            if (!currentEditId) {
+                if (type === 'video') {
+                    document.getElementById('playDuration').value = mediaDuration > 0 ? mediaDuration : 0;
+                } else {
+                    document.getElementById('playDuration').value = 10;
+                }
+            }
+        }
+        document.getElementById('scheduleMediaSelect').addEventListener('change', onScheduleMediaChange);
+
+        async function createSchedule() {
+            const sel = document.getElementById('scheduleMediaSelect');
+            const mediaId = sel.value;
+            const type = sel.options[sel.selectedIndex]?.getAttribute('data-type');
+            const startDate = document.getElementById('startTime').value;
+            const endDate = document.getElementById('endTime').value;
+            const playDuration = document.getElementById('playDuration').value;
+            const priority = document.getElementById('priority').value;
+            const textSize = document.getElementById('textSize').value;
+            const textColor = document.getElementById('textColor').value;
+            const bgColor = document.getElementById('bgColor').value;
+
+            if (!mediaId || !startDate || !endDate) {
+                alert('请填写完整信息');
+                return;
+            }
+
+            const startDateTime = new Date(startDate + 'T00:00:00').toISOString();
+            const endDateTime = new Date(endDate + 'T23:59:59').toISOString();
+
+            if (currentEditId) {
+                const payload = {};
+                if (type === 'text') {
+                    payload.text_size = parseInt(textSize);
+                    payload.text_color = textColor;
+                    payload.bg_color = bgColor;
+                    payload.text_scroll_mode = document.getElementById('textScrollMode').value;
+                }
+                payload.play_duration = parseInt(playDuration);
+                payload.priority = parseInt(priority);
+                payload.start_time = startDateTime;
+                payload.end_time = endDateTime;
+                try {
+                    const res = await fetch(`${API_BASE}/schedule/${currentEditId}`, {
+                        method: 'PUT',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(payload)
+                    });
+                    const result = await res.json();
+                    if (result.status !== 'success' && result.status !== 'noop') {
+                        alert('修改失败: ' + JSON.stringify(result));
+                    } else {
+                        alert('修改成功');
+                    }
+                    cancelEdit();
+                    loadSchedule();
+                } catch (error) {
+                    alert('修改失败: ' + error);
+                }
+                return;
+            }
+            
+            const data = {
+                media_id: parseInt(mediaId),
+                start_time: startDateTime,
+                end_time: endDateTime,
+                play_duration: parseInt(playDuration),
+                priority: parseInt(priority),
+                text_size: (type === 'text') ? parseInt(textSize) : null,
+                text_color: (type === 'text') ? textColor : null,
+                bg_color: (type === 'text') ? bgColor : null,
+                text_scroll_mode: (type === 'text') ? document.getElementById('textScrollMode').value : null
+            };
+
+            try {
+                const response = await fetch(`${API_BASE}/schedule`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(data)
+                });
+                const result = await response.json();
+                alert('创建成功: ' + JSON.stringify(result));
+                loadSchedule();
+            } catch (error) {
+                alert('创建失败: ' + error);
+            }
+        }
+
+        async function loadSchedule() {
+            try {
+                const response = await fetch(`${API_BASE}/schedule`);
+                const result = await response.json();
+                scheduleCache = result.data || [];
+                let html = '<table class="table table-striped table-hover"><thead><tr><th>ID</th><th>媒体</th><th>开始时间</th><th>结束时间</th><th>播放时长(秒)</th><th>优先级</th><th>状态</th><th>顺序</th><th>操作</th></tr></thead><tbody>';
+                scheduleCache.forEach(item => {
+                    html += `<tr>
+                        <td>${item.id}</td>
+                        <td>${item.media_name}</td>
+                        <td>${new Date(item.start_time).toLocaleString()}</td>
+                        <td>${new Date(item.end_time).toLocaleString()}</td>
+                        <td>${item.play_duration ?? item.default_duration ?? 10}</td>
+                        <td>${item.priority}</td>
+                        <td>${(item.is_enabled ?? 1) ? '<span class="badge bg-success">启用</span>' : '<span class="badge bg-secondary">停用</span>'}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-secondary" onclick="moveUp(${item.id})">↑</button>
+                                <button class="btn btn-outline-secondary" onclick="moveDown(${item.id})">↓</button>
+                            </div>
+                        </td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-primary" onclick="playSchedule(${item.id})">播放</button>
+                                <button class="btn btn-warning" onclick="editSchedule(${item.id})">修改</button>
+                                ${(item.is_enabled ?? 1) ? `<button class="btn btn-danger" onclick="disableSchedule(${item.id})">停止</button>` : `<button class="btn btn-success" onclick="enableSchedule(${item.id})">启动</button>`}
+                                <button class="btn btn-outline-danger" onclick="deleteSchedule(${item.id})">删除</button>
+                            </div>
+                        </td>
+                    </tr>`;
+                });
+                html += '</tbody></table>';
+                document.getElementById('scheduleList').innerHTML = html;
+            } catch (error) {
+                console.error('加载计划失败:', error);
+            }
+        }
+        
+        function moveUp(id) {
+            const idx = scheduleCache.findIndex(s => s.id === id);
+            if (idx > 0) {
+                const tmp = scheduleCache[idx-1];
+                scheduleCache[idx-1] = scheduleCache[idx];
+                scheduleCache[idx] = tmp;
+                applyOrder();
+            }
+        }
+        function moveDown(id) {
+            const idx = scheduleCache.findIndex(s => s.id === id);
+            if (idx >= 0 && idx < scheduleCache.length - 1) {
+                const tmp = scheduleCache[idx+1];
+                scheduleCache[idx+1] = scheduleCache[idx];
+                scheduleCache[idx] = tmp;
+                applyOrder();
+            }
+        }
+        async function applyOrder() {
+            const order = scheduleCache.map(s => s.id);
+            try {
+                await fetch(`${API_BASE}/schedule/reorder`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(order)
+                });
+                loadSchedule();
+            } catch (e) {
+                alert('调整顺序失败: ' + e);
+            }
+        }
+
+        async function deleteSchedule(id) {
+            if(!confirm('确定删除?')) return;
+            try {
+                await fetch(`${API_BASE}/schedule/${id}`, { method: 'DELETE' });
+                loadSchedule();
+            } catch (error) {
+                alert('删除失败: ' + error);
+            }
+        }
+
+        async function playSchedule(id) {
+            try {
+                const response = await fetch(`${API_BASE}/control/play/${id}`, { method: 'POST' });
+                const result = await response.json();
+                console.log('播放指令已发送:', result);
+            } catch (error) {
+                alert('播放失败: ' + error);
+            }
+        }
+        
+        async function editSchedule(id) {
+            const item = scheduleCache.find(s => s.id === id);
+            if (!item) return;
+            currentEditId = id;
+            const sel = document.getElementById('scheduleMediaSelect');
+            sel.value = item.media_id;
+            sel.setAttribute('disabled', 'disabled');
+            const type = item.media_type;
+            document.getElementById('textOptions').style.display = (type === 'text') ? 'block' : 'none';
+            document.getElementById('playDuration').value = item.play_duration ?? item.default_duration ?? 10;
+            document.getElementById('priority').value = item.priority ?? 0;
+            const sd = new Date(item.start_time); 
+            const ed = new Date(item.end_time);
+            document.getElementById('startTime').value = sd.toISOString().split('T')[0];
+            document.getElementById('endTime').value = ed.toISOString().split('T')[0];
+            if (type === 'text') {
+                document.getElementById('textSize').value = item.text_size ?? 48;
+                document.getElementById('textColor').value = item.text_color ?? '#FFFFFF';
+                document.getElementById('bgColor').value = item.bg_color ?? '#000000';
+                document.getElementById('textScrollMode').value = item.text_scroll_mode ?? 'static';
+            }
+            const btn = document.getElementById('createBtn');
+            btn.innerText = '保存修改';
+            document.getElementById('cancelEditBtn').style.display = 'inline-block';
+        }
+        
+        function cancelEdit() {
+            currentEditId = null;
+            const sel = document.getElementById('scheduleMediaSelect');
+            sel.removeAttribute('disabled');
+            document.getElementById('createBtn').innerText = '创建计划';
+            document.getElementById('cancelEditBtn').style.display = 'none';
+            onScheduleMediaChange();
+        }
+        
+        async function enableSchedule(id) {
+            try {
+                await fetch(`${API_BASE}/schedule/${id}/enable`, { method: 'POST' });
+                loadSchedule();
+            } catch (error) {
+                alert('启动失败: ' + error);
+            }
+        }
+        
+        async function disableSchedule(id) {
+            try {
+                await fetch(`${API_BASE}/schedule/${id}/disable`, { method: 'POST' });
+                loadSchedule();
+            } catch (error) {
+                alert('停止失败: ' + error);
+            }
+        }
+        
+        async function stopAll() {
+            try {
+                await fetch(`${API_BASE}/control/scheduler/stop`, { method: 'POST' });
+                alert('已停止所有计划');
+            } catch (error) {
+                alert('停止失败: ' + error);
+            }
+        }
+        
+        async function startAll() {
+            try {
+                await fetch(`${API_BASE}/control/scheduler/start`, { method: 'POST' });
+                alert('已启动所有计划');
+            } catch (error) {
+                alert('启动失败: ' + error);
+            }
+        }
+
+        async function loadPlayWindow() {
+            try {
+                const res = await fetch(`${API_BASE}/play_window`);
+                const result = await res.json();
+                const d = result.data || {};
+                document.getElementById('playWindowEnabled').checked = !!d.enabled;
+                document.getElementById('playWindowStart').value = d.start_time || '';
+                document.getElementById('playWindowEnd').value = d.end_time || '';
+            } catch (e) {
+                console.error('加载时间窗失败:', e);
+            }
+        }
+
+        async function savePlayWindow() {
+            const enabled = document.getElementById('playWindowEnabled').checked;
+            const start_time = document.getElementById('playWindowStart').value || null;
+            const end_time = document.getElementById('playWindowEnd').value || null;
+            try {
+                const res = await fetch(`${API_BASE}/play_window`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled, start_time, end_time })
+                });
+                const result = await res.json();
+                if (result.status === 'success') {
+                    alert('时间窗已保存');
+                } else {
+                    alert('保存失败: ' + JSON.stringify(result));
+                }
+            } catch (e) {
+                alert('保存失败: ' + e);
+            }
+        }
+
+        async function loadLogs() {
+            try {
+                const sd = document.getElementById('logStart').value;
+                const ed = document.getElementById('logEnd').value;
+                const params = new URLSearchParams();
+                params.set('limit', String(logsLimit));
+                params.set('page', String(logsPage));
+                if (sd) params.set('start_date', sd);
+                if (ed) params.set('end_date', ed);
+                const response = await fetch(`${API_BASE}/logs?` + params.toString());
+                const result = await response.json();
+                let html = '<table class="table table-striped table-hover"><thead><tr><th>媒体</th><th>开始时间</th><th>结束时间</th><th>时长(秒)</th><th>计划ID</th></tr></thead><tbody>';
+                result.data.forEach(item => {
+                    html += `<tr>
+                        <td>${item.media_name}</td>
+                        <td>${new Date(item.start_time).toLocaleString()}</td>
+                        <td>${new Date(item.end_time).toLocaleString()}</td>
+                        <td>${item.duration_seconds}</td>
+                        <td>${item.schedule_id ?? ''}</td>
+                    </tr>`;
+                });
+                html += '</tbody></table>';
+                document.getElementById('logList').innerHTML = html;
+                document.getElementById('logsPageInfo').innerText = `第 ${logsPage} 页（每页 ${logsLimit} 条）`;
+            } catch (error) {
+                console.error('加载日志失败:', error);
+            }
+        }
+        
+        async function loadScreens() {
+            try {
+                const res = await fetch(`${API_BASE}/system/screens`);
+                const result = await res.json();
+                const data = result.data || [];
+                let html = '';
+                data.forEach(s => {
+                    html += `<div class="form-check">
+                        <input class="form-check-input" type="checkbox" name="screenIdx" value="${s.index}" id="screen_${s.index}">
+                        <label class="form-check-label" for="screen_${s.index}">
+                            #${s.index} ${s.name} (${s.width}x${s.height})
+                        </label>
+                    </div>`;
+                });
+                document.getElementById('screensList').innerHTML = html || '<span class="text-muted">未检测到显示器</span>';
+            } catch (e) {
+                alert('加载显示器失败: ' + e);
+            }
+        }
+        
+        async function applyOutput() {
+            const mode = document.getElementById('outputMode').value;
+            const boxes = Array.from(document.querySelectorAll('#screensList input[name="screenIdx"]:checked'));
+            const targets = boxes.map(b => parseInt(b.value));
+            const payload = { mode, targets };
+            if (mode === 'extended') {
+                const scaleMode = document.getElementById('scaleMode').value;
+                payload.scale_mode = scaleMode;
+            }
+            try {
+                const res = await fetch(`${API_BASE}/system/output`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await res.json();
+                if (result.status === 'success') {
+                    alert('输出设置已应用');
+                    loadOutputConfig();
+                } else {
+                    alert('应用失败: ' + JSON.stringify(result));
+                }
+            } catch (e) {
+                alert('应用失败: ' + e);
+            }
+        }
+        
+        async function loadOutputConfig() {
+            try {
+                const res = await fetch(`${API_BASE}/system/output`);
+                const result = await res.json();
+                const d = result.data || {};
+                updateOutputStatusCard(d);
+                document.getElementById('outputMode').value = d.mode || 'specified';
+                document.getElementById('extendedScaleRow').style.display = (d.mode === 'extended') ? 'block' : 'none';
+                if (d.mode === 'extended' && d.scale_mode) {
+                    document.getElementById('scaleMode').value = d.scale_mode;
+                }
+                const targets = d.targets || [];
+                const boxes = Array.from(document.querySelectorAll('#screensList input[name="screenIdx"]'));
+                boxes.forEach(b => {
+                    b.checked = targets.includes(parseInt(b.value));
+                });
+            } catch (e) {}
+        }
+        
+        async function closeOutput() {
+            try {
+                const res = await fetch(`${API_BASE}/system/output`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ mode: 'off', targets: [] })
+                });
+                const result = await res.json();
+                if (result.status === 'success') {
+                    alert('输出已关闭');
+                    loadOutputConfig();
+                } else {
+                    alert('关闭失败: ' + JSON.stringify(result));
+                }
+            } catch (e) {
+                alert('关闭失败: ' + e);
+            }
+        }
+        
+        async function applyTestColor(color) {
+            const boxes = Array.from(document.querySelectorAll('#screensList input[name="screenIdx"]:checked'));
+            const targets = boxes.map(b => parseInt(b.value));
+            try {
+                const res = await fetch(`${API_BASE}/system/output/test_color`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ color, targets })
+                });
+                const result = await res.json();
+                if (result.status !== 'success') {
+                    alert('测试失败: ' + JSON.stringify(result));
+                }
+            } catch (e) {
+                alert('测试失败: ' + e);
+            }
+        }
+        
+        loadScreens();
+        loadOutputConfig();
+        document.getElementById('outputMode').addEventListener('change', () => {
+            const v = document.getElementById('outputMode').value;
+            document.getElementById('extendedScaleRow').style.display = (v === 'extended') ? 'block' : 'none';
+        });
+        function prevLogsPage() {
+            if (logsPage > 1) {
+                logsPage -= 1;
+                loadLogs();
+            }
+        }
+        function nextLogsPage() {
+            logsPage += 1;
+            loadLogs();
+        }
+        
+        function fmt(sec) {
+            const m = Math.floor((sec || 0) / 60);
+            const s = (sec || 0) % 60;
+            return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+        }
+
+        function updateOutputStatusCard(d) {
+            const modeSpan = document.getElementById('curOutputMode');
+            const targetsSpan = document.getElementById('curOutputTargets');
+            const scaleSpan = document.getElementById('curScaleMode');
+            if (!modeSpan || !targetsSpan || !scaleSpan) return;
+            const mode = (d.mode || 'specified').toLowerCase();
+            let modeText = '-';
+            if (mode === 'specified') modeText = '指定屏幕';
+            else if (mode === 'sync') modeText = '同步';
+            else if (mode === 'extended') modeText = '扩展';
+            else if (mode === 'off') modeText = '关闭';
+            modeSpan.innerText = modeText;
+            const targets = d.targets || [];
+            targetsSpan.innerText = targets.length ? targets.join(',') : '-';
+            scaleSpan.innerText = d.scale_mode || 'fit';
+        }
+
+        function updateScheduleStatus(d) {
+            const schedSpan = document.getElementById('curScheduleState');
+            const windowSpan = document.getElementById('curPlayWindowState');
+            if (!schedSpan || !windowSpan) return;
+            const playing = !!d.scheduler_playing;
+            const paused = !!d.scheduler_paused;
+            const blocked = !!d.scheduler_window_blocked;
+            let stateText = '-';
+            if (blocked) stateText = '已停止（播放窗口限制）';
+            else if (paused) stateText = '已暂停';
+            else if (playing) stateText = '播放中';
+            else stateText = '空闲';
+            schedSpan.innerText = stateText;
+            let windowText = '-';
+            if (blocked) windowText = '当前时间不在播放窗口内';
+            else windowText = '正常';
+            windowSpan.innerText = windowText;
+        }
+
+        function toggleOutputPreview() {
+            const btn = document.getElementById('outputPreviewToggle');
+            const img = document.getElementById('outputSnapshotImage');
+            const ph = document.getElementById('outputSnapshotPlaceholder');
+            if (!btn || !img || !ph) return;
+            
+            outputPreviewActive = !outputPreviewActive;
+            
+            if (outputPreviewActive) {
+                btn.innerText = '停止预览';
+                refreshOutputSnapshot();
+            } else {
+                btn.innerText = '开始预览';
+                img.style.display = 'none';
+                ph.style.display = 'block';
+                ph.innerText = '预览已关闭';
+            }
+        }
+
+        async function refreshOutputSnapshot() {
+            try {
+                const img = document.getElementById('outputSnapshotImage');
+                const ph = document.getElementById('outputSnapshotPlaceholder');
+                if (!img || !ph) return;
+
+                if (!outputPreviewActive) {
+                    img.style.display = 'none';
+                    ph.style.display = 'block';
+                    ph.innerText = '预览已关闭';
+                    return;
+                }
+
+                const res = await fetch(`${API_BASE}/preview/snapshot?t=${Date.now()}`, { cache: 'no-store' });
+                if (res.status === 204) {
+                    img.style.display = 'none';
+                    ph.style.display = 'block';
+                    ph.innerText = '无快照';
+                    return;
+                }
+                if (!res.ok) {
+                    img.style.display = 'none';
+                    ph.style.display = 'block';
+                    ph.innerText = '获取快照失败';
+                    return;
+                }
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                img.src = url;
+                img.onload = () => {
+                    URL.revokeObjectURL(url);
+                };
+                img.style.display = 'block';
+                ph.style.display = 'none';
+            } catch (e) {
+                const img = document.getElementById('outputSnapshotImage');
+                const ph = document.getElementById('outputSnapshotPlaceholder');
+                if (img && ph) {
+                    img.style.display = 'none';
+                    ph.style.display = 'block';
+                    ph.innerText = '获取快照失败';
+                }
+            }
+        }
+
+        async function refreshPreview() {
+            try {
+                const res = await fetch(`${API_BASE}/status/current`);
+                const result = await res.json();
+                const d = result.data || {};
+                document.getElementById('curMediaName').innerText = d.media_name || '-';
+                document.getElementById('curMediaType').innerText = d.media_type || '-';
+                document.getElementById('curScheduleId').innerText = d.schedule_id || '-';
+                document.getElementById('curElapsed').innerText = fmt(d.elapsed || 0);
+                document.getElementById('curTotal').innerText = fmt(d.total || 0);
+                updateScheduleStatus(d);
+            } catch (e) {
+                // ignore
+            }
+        }
+
+        async function loadCameraConfig() {
+            try {
+                const res = await fetch(`${API_BASE}/camera/config`);
+                const result = await res.json();
+                const d = result.data;
+                const enabled = !!(d && d.enabled);
+                cameraEnabled = enabled;
+                const enabledEl = document.getElementById('cameraEnabled');
+                const nameEl = document.getElementById('cameraName');
+                const urlEl = document.getElementById('cameraStreamUrl');
+                const userEl = document.getElementById('cameraUsername');
+                const passEl = document.getElementById('cameraPassword');
+                const notesEl = document.getElementById('cameraNotes');
+                const statusEl = document.getElementById('cameraStatusText');
+                if (enabledEl) enabledEl.checked = enabled;
+                if (nameEl) nameEl.value = d && d.name ? d.name : '';
+                if (urlEl) urlEl.value = d && d.stream_url ? d.stream_url : '';
+                if (userEl) userEl.value = d && d.username ? d.username : '';
+                if (passEl) passEl.value = '';
+                if (notesEl) notesEl.value = d && d.notes ? d.notes : '';
+                if (statusEl) {
+                    if (!d) statusEl.innerText = '尚未配置摄像头参数';
+                    else if (!enabled) statusEl.innerText = '摄像头配置已保存，但当前未启用';
+                    else statusEl.innerText = '配置已加载，摄像头监控已启用';
+                }
+            } catch (e) {
+                cameraEnabled = false;
+                const statusEl = document.getElementById('cameraStatusText');
+                if (statusEl) statusEl.innerText = '加载配置失败';
+            }
+        }
+
+        async function saveCameraConfig() {
+            try {
+                const enabled = document.getElementById('cameraEnabled').checked;
+                const name = document.getElementById('cameraName').value.trim();
+                const stream_url = document.getElementById('cameraStreamUrl').value.trim();
+                const username = document.getElementById('cameraUsername').value.trim();
+                const password = document.getElementById('cameraPassword').value;
+                const notes = document.getElementById('cameraNotes').value.trim();
+                const payload = {
+                    enabled,
+                    name: name || null,
+                    stream_url: stream_url || null,
+                    username: username || null,
+                    password: password || null,
+                    notes: notes || null
+                };
+                const res = await fetch(`${API_BASE}/camera/config`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await res.json();
+                if (result.status === 'success' || result.status === 'noop') {
+                    alert('摄像头配置已保存');
+                    loadCameraConfig();
+                } else {
+                    alert('保存失败: ' + JSON.stringify(result));
+                }
+            } catch (e) {
+                alert('保存失败: ' + e);
+            }
+        }
+
+        async function refreshCameraSnapshot() {
+            try {
+                const img = document.getElementById('cameraSnapshotImage');
+                const ph = document.getElementById('cameraSnapshotPlaceholder');
+                const statusEl = document.getElementById('cameraStatusText');
+                if (!img || !ph) return;
+                if (!cameraEnabled) {
+                    img.style.display = 'none';
+                    ph.style.display = 'block';
+                    ph.innerText = '未启用摄像头';
+                    return;
+                }
+                if (!cameraPreviewActive) {
+                    img.style.display = 'none';
+                    ph.style.display = 'block';
+                    ph.innerText = '预览已关闭';
+                    if (statusEl) statusEl.innerText = '摄像头预览已关闭';
+                    return;
+                }
+                const res = await fetch(`${API_BASE}/camera/snapshot?t=${Date.now()}`, { cache: 'no-store' });
+                if (res.status === 204) {
+                    img.style.display = 'none';
+                    ph.style.display = 'block';
+                    ph.innerText = '无画面';
+                    if (statusEl) statusEl.innerText = '摄像头未返回画面';
+                    return;
+                }
+                if (!res.ok) {
+                    img.style.display = 'none';
+                    ph.style.display = 'block';
+                    ph.innerText = '获取画面失败';
+                    if (statusEl) statusEl.innerText = '获取摄像头画面失败';
+                    return;
+                }
+                const blob = await res.blob();
+                const url = URL.createObjectURL(blob);
+                img.src = url;
+                img.onload = () => {
+                    URL.revokeObjectURL(url);
+                };
+                img.style.display = 'block';
+                ph.style.display = 'none';
+                if (statusEl) statusEl.innerText = '摄像头画面更新于 ' + new Date().toLocaleTimeString();
+            } catch (e) {
+                const img = document.getElementById('cameraSnapshotImage');
+                const ph = document.getElementById('cameraSnapshotPlaceholder');
+                const statusEl = document.getElementById('cameraStatusText');
+                if (img && ph) {
+                    img.style.display = 'none';
+                    ph.style.display = 'block';
+                    ph.innerText = '获取画面失败';
+                }
+                if (statusEl) statusEl.innerText = '获取摄像头画面失败';
+            }
+        }
+
+        function toggleCameraPreview() {
+            const btn = document.getElementById('cameraPreviewToggle');
+            const img = document.getElementById('cameraSnapshotImage');
+            const ph = document.getElementById('cameraSnapshotPlaceholder');
+            const statusEl = document.getElementById('cameraStatusText');
+            if (!btn || !img || !ph) return;
+            cameraPreviewActive = !cameraPreviewActive;
+            if (cameraPreviewActive) {
+                btn.innerText = '停止预览';
+                if (statusEl) statusEl.innerText = '摄像头预览已开启';
+                refreshCameraSnapshot();
+            } else {
+                btn.innerText = '开始预览';
+                img.style.display = 'none';
+                ph.style.display = 'block';
+                ph.innerText = '预览已关闭';
+                if (statusEl) statusEl.innerText = '摄像头预览已关闭';
+            }
+        }
+
+        
+        async function loadUsers() {
+            try {
+                const res = await fetch(`${API_BASE}/users`);
+                const result = await res.json();
+                const data = result.data || [];
+                let html = '<table class="table table-striped table-hover"><thead><tr><th>ID</th><th>用户名</th><th>管理员</th><th>操作</th></tr></thead><tbody>';
+                data.forEach(u => {
+                    html += `<tr>
+                        <td>${u.id}</td>
+                        <td>${u.username}</td>
+                        <td>${u.is_admin ? '是' : '否'}</td>
+                        <td>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="selectUser(${u.id}, '${u.username}', ${u.is_admin ? 1 : 0})">选择</button>
+                                <button class="btn btn-outline-danger" onclick="deleteUser(${u.id})">删除</button>
+                            </div>
+                        </td>
+                    </tr>`;
+                });
+                html += '</tbody></table>';
+                document.getElementById('usersList').innerHTML = html;
+            } catch (e) {}
+        }
+        function selectUser(id, username, is_admin) {
+            selectedUserId = id;
+            document.getElementById('userNameInput').value = username;
+            document.getElementById('userAdminInput').value = is_admin ? '1' : '0';
+            document.getElementById('userPassInput').value = '';
+        }
+        async function createUser() {
+            try {
+                const username = document.getElementById('userNameInput').value.trim();
+                const password = document.getElementById('userPassInput').value;
+                const is_admin = parseInt(document.getElementById('userAdminInput').value);
+                if (!username || !password) { alert('请输入用户名和密码'); return; }
+                const res = await fetch(`${API_BASE}/users`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ username, password, is_admin })
+                });
+                const result = await res.json();
+                if (result.status === 'success') { alert('创建成功'); loadUsers(); }
+                else { alert('失败: ' + JSON.stringify(result)); }
+            } catch (e) { alert('失败: ' + e); }
+        }
+        async function applyUserUpdate() {
+            if (!selectedUserId) { alert('请先选择用户'); return; }
+            try {
+                const username = document.getElementById('userNameInput').value.trim();
+                const password = document.getElementById('userPassInput').value;
+                const is_admin = parseInt(document.getElementById('userAdminInput').value);
+                const payload = {};
+                if (username) payload.username = username;
+                if (password) payload.password = password;
+                payload.is_admin = is_admin;
+                const res = await fetch(`${API_BASE}/users/${selectedUserId}`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const result = await res.json();
+                if (result.status === 'success') { alert('更新成功'); loadUsers(); }
+                else { alert('失败: ' + JSON.stringify(result)); }
+            } catch (e) { alert('失败: ' + e); }
+        }
+        async function deleteUser(id) {
+            if (!confirm('确定删除该用户?')) return;
+            try {
+                const res = await fetch(`${API_BASE}/users/${id}`, { method: 'DELETE' });
+                const result = await res.json();
+                if (result.status === 'success') { alert('删除成功'); loadUsers(); }
+                else { alert('失败: ' + JSON.stringify(result)); }
+            } catch (e) { alert('失败: ' + e); }
+        }
+        async function loadLogStats() {
+            try {
+                const response = await fetch(`${API_BASE}/logs/stats`);
+                const result = await response.json();
+                let html = '<table class="table table-bordered table-striped"><thead><tr><th>媒体</th><th>播放次数</th><th>总时长(秒)</th></tr></thead><tbody>';
+                result.data.forEach(item => {
+                    html += `<tr>
+                        <td>${item.media_name}</td>
+                        <td>${item.play_count}</td>
+                        <td>${item.total_seconds}</td>
+                    </tr>`;
+                });
+                html += '</tbody></table>';
+                document.getElementById('logStats').innerHTML = html;
+            } catch (error) {
+                console.error('加载统计失败:', error);
+            }
+        }
+
+        // Start Auth Check
+        checkAuth();
+    </script>
+</body>
+</html>

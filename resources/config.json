@@ -1,0 +1,14 @@
+{
+    "server": {
+        "port": 8080,
+        "host": "0.0.0.0"
+    },
+    "player": {
+        "default_duration": 10,
+        "loop": true,
+        "target_screen_index": 2
+    },
+    "database": {
+        "path": "data/led.db"
+    }
+}
