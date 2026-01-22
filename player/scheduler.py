@@ -63,43 +63,60 @@ class Scheduler(QObject):
         return now_minutes >= start_minutes or now_minutes < end_minutes
 
     def check_loop(self):
-        cmd = command_bus.get()
-        if cmd:
-            c = cmd.get('command')
-            if c == 'FORCE_PLAY':
-                self.handle_force_play(cmd.get('data'))
-                return
-            if c == 'STOP_ALL':
-                self.paused = True
+        try:
+            cmd = command_bus.get()
+            if cmd:
+                c = cmd.get('command')
+                if c == 'FORCE_PLAY':
+                    self.handle_force_play(cmd.get('data'))
+                    return
+                if c == 'STOP_ALL':
+                    self.paused = True
+                    if self.is_playing:
+                        self.stop_requested.emit()
+                    set_scheduler_state(self.is_playing, self.paused, self._window_blocked)
+                    return
+                if c == 'START_ALL':
+                    self.paused = False
+                    self.check_schedule()
+                    set_scheduler_state(self.is_playing, self.paused, self._window_blocked)
+                    return
+                if c in ("OUTPUT_SET", "OUTPUT_TEST_COLOR"):
+                    command_bus.send(c, cmd.get('data'))
+
+            within_window = self._is_within_play_window(datetime.now())
+            if not within_window:
                 if self.is_playing:
+                    print("[Scheduler] Outside play window, stopping playback")
                     self.stop_requested.emit()
-                set_scheduler_state(self.is_playing, self.paused, self._window_blocked)
+                    self.is_playing = False
+                    self.current_schedule_id = None
+                    self.current_media_id = None
+                    self.play_start_time = None
+                
+                if not self._window_blocked:
+                    print("[Scheduler] Window blocked (Outside play window)")
+                    self._window_blocked = True
+                    set_scheduler_state(self.is_playing, self.paused, self._window_blocked)
                 return
-            if c == 'START_ALL':
-                self.paused = False
-                self.check_schedule()
+            
+            if self._window_blocked:
+                print("[Scheduler] Window unblocked (Inside play window)")
+                self._window_blocked = False
                 set_scheduler_state(self.is_playing, self.paused, self._window_blocked)
-                return
-            if c in ("OUTPUT_SET", "OUTPUT_TEST_COLOR"):
-                command_bus.send(c, cmd.get('data'))
 
-        within_window = self._is_within_play_window(datetime.now())
-        if not within_window:
+            if self.paused:
+                return
+                
             if self.is_playing:
-                self.stop_requested.emit()
-                self.is_playing = False
-                self.current_schedule_id = None
-                self.current_media_id = None
-                self.play_start_time = None
-            self._window_blocked = True
-            set_scheduler_state(self.is_playing, self.paused, self._window_blocked)
-            return
-        self._window_blocked = False
-        set_scheduler_state(self.is_playing, self.paused, self._window_blocked)
-
-        if self.paused or self.is_playing:
-            return
-        self.check_schedule()
+                # Optional: Check for timeout/stuck playback?
+                return
+                
+            self.check_schedule()
+        except Exception as e:
+            print(f"[Scheduler] Error in check_loop: {e}")
+            import traceback
+            traceback.print_exc()
 
     def handle_force_play(self, schedule_id):
         print(f"Force playing schedule: {schedule_id}")
@@ -164,8 +181,13 @@ class Scheduler(QObject):
                         current_index = i
                         break
                 
-                # Pick next one (circular)
-                next_index = (current_index + 1) % len(valid_schedules)
+                if current_index == -1:
+                    # Last played item no longer valid, start from 0
+                    next_index = 0
+                else:
+                    # Pick next one (circular)
+                    next_index = (current_index + 1) % len(valid_schedules)
+                
                 next_schedule = valid_schedules[next_index]
                 follow_index = (next_index + 1) % len(valid_schedules)
                 follow_schedule = valid_schedules[follow_index]

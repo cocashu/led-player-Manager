@@ -113,6 +113,17 @@ Item {
             // QtMultimedia doesn't have explicit "load", play() starts it.
             // We'll let it play silently or pause when buffered.
         }
+
+        // --- SAFETY CHECK: If current video is already finished, start fade immediately ---
+        // This handles cases where a video finishes while we were preparing the next item,
+        // or if the video was very short.
+        if (root.currentType === "video" && !root.isFading) {
+            var currentPlayer = root.activeIsA ? playerA : playerB
+            if (currentPlayer.mediaStatus === MediaPlayer.EndOfMedia) {
+                root.mediaInfo("Current video finished during prepareNext, forcing fade.")
+                startFade()
+            }
+        }
     }
     
     // Force immediate play (for first item)
@@ -213,7 +224,9 @@ Item {
             // Transition B -> A
             if (root.nextType === "video") {
                 playerA.audioOutput.volume = 1.0
-                // playerA.play()
+                if (playerA.playbackState !== MediaPlayer.PlayingState) {
+                    playerA.play()
+                }
             }
             
             aItem.z = 10
@@ -292,6 +305,7 @@ Item {
             id: bgA
             anchors.fill: parent
             color: "black"
+            z: 0
         }
         
         Image {
@@ -301,6 +315,7 @@ Item {
             visible: false
             smooth: true
             mipmap: true
+            z: 1
         }
         Text {
             id: textA
@@ -313,6 +328,7 @@ Item {
             visible: false
             style: Text.Outline
             styleColor: "black"
+            z: 2
             
             states: [
                 State {
@@ -343,15 +359,37 @@ Item {
             audioOutput: AudioOutput {}
             videoOutput: videoA
             onMediaStatusChanged: {
-                 if (root.activeIsA && root.currentType === "video" && !root.isFading && status === MediaPlayer.EndOfMedia) {
-                     if (root.nextReady) startFade()
+                 if (root.activeIsA && root.currentType === "video" && !root.isFading) {
+                     if (status === MediaPlayer.EndOfMedia) {
+                         if (root.nextReady) {
+                             startFade()
+                         } else {
+                             root.mediaInfo("Player A finished but next not ready. Waiting...")
+                         }
+                     }
                  }
+            }
+            onErrorOccurred: {
+                root.mediaInfo("Player A Error: " + errorString)
+                // Auto-skip on error if current
+                if (root.activeIsA && root.currentType === "video" && !root.isFading) {
+                    root.mediaInfo("Player A error during playback. Forcing next.")
+                    // If next is ready, fade. If not, emit finished to provoke next.
+                    if (root.nextReady) {
+                        startFade()
+                    } else {
+                        // Force Python to send next immediately
+                        root.mediaFinished(root.currentUrl, root.currentType)
+                    }
+                }
             }
         }
         VideoOutput {
             id: videoA
             anchors.fill: parent
             visible: false
+            fillMode: VideoOutput.PreserveAspectFit
+            z: 5
         }
     }
     
@@ -365,6 +403,7 @@ Item {
             id: bgB
             anchors.fill: parent
             color: "black"
+            z: 0
         }
         
         Image {
@@ -374,6 +413,7 @@ Item {
             visible: false
             smooth: true
             mipmap: true
+            z: 1
         }
         Text {
             id: textB
@@ -386,6 +426,7 @@ Item {
             visible: false
             style: Text.Outline
             styleColor: "black"
+            z: 2
             
             states: [
                 State {
@@ -416,15 +457,39 @@ Item {
             audioOutput: AudioOutput {}
             videoOutput: videoB
             onMediaStatusChanged: {
-                 if (!root.activeIsA && root.currentType === "video" && !root.isFading && status === MediaPlayer.EndOfMedia) {
-                     if (root.nextReady) startFade()
+                 root.mediaInfo("Player B Status: " + status)
+                 if (!root.activeIsA && root.currentType === "video" && !root.isFading) {
+                     if (status === MediaPlayer.EndOfMedia) {
+                         if (root.nextReady) {
+                             startFade()
+                         } else {
+                             root.mediaInfo("Player B finished but next not ready. Waiting...")
+                         }
+                     }
                  }
+            }
+            onPlaybackStateChanged: {
+                root.mediaInfo("Player B State: " + playbackState)
+            }
+            onErrorOccurred: {
+                root.mediaInfo("Player B Error: " + errorString + " (" + error + ")")
+                // Auto-skip on error if current
+                if (!root.activeIsA && root.currentType === "video" && !root.isFading) {
+                    root.mediaInfo("Player B error during playback. Forcing next.")
+                    if (root.nextReady) {
+                        startFade()
+                    } else {
+                        root.mediaFinished(root.currentUrl, root.currentType)
+                    }
+                }
             }
         }
         VideoOutput {
             id: videoB
             anchors.fill: parent
             visible: false
+            fillMode: VideoOutput.PreserveAspectFit
+            z: 5
         }
     }
     

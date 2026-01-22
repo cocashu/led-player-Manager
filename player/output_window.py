@@ -34,9 +34,18 @@ class OutputWindow(QWidget):
             self.qml_widget.rootObject().mediaFinished.connect(self._on_media_finished)
             self.qml_widget.rootObject().mediaInfo.connect(self._on_media_info)
         else:
-            print("Error: QML root object not found")
+            error_msg = "Error: QML root object not found. Possible reasons:\n1. 'output.qml' missing in bundled app.\n2. QML syntax error."
+            print(error_msg)
             for err in self.qml_widget.errors():
-                print(err.toString())
+                print(f"QML Error: {err.toString()}")
+                error_msg += f"\n{err.toString()}"
+            
+            # Try to log to a file in case console is not visible
+            try:
+                with open("qml_error.log", "w") as f:
+                    f.write(error_msg)
+            except:
+                pass
 
         # Frameless and Always on Top
         self.setWindowFlags(Qt.WindowType.FramelessWindowHint | Qt.WindowType.WindowStaysOnTopHint | Qt.WindowType.Tool)

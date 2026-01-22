@@ -14,10 +14,13 @@ class MediaPlayer(QWidget):
     def __init__(self, parent=None):
         super().__init__(parent)
         self.instance = vlc.Instance(
+            "--ignore-config",
             "--no-snapshot-preview",
             "--no-osd",
-            "--avcodec-hw=none",
-            "--vout=direct3d9"
+            "--avcodec-hw=none", 
+            "--vout=direct3d9",
+            "--no-video-title-show",
+            "--quiet"
         )
         # Local preview player
         self.preview_player = self.instance.media_player_new()
